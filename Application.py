@@ -26,8 +26,8 @@ def apply_style_transfer(model, content_image, style_image):
     return stylized_image
 
 # Streamlit app layout
-st.title("Style Transfer App")
-st.write("Upload a content image and a style image to generate a stylized image.")
+st.title("Similar Image Generating App")
+st.write("Upload a content image and a style image to generate a similar image.")
 
 # Upload content and style images
 content_image_file = st.file_uploader("Choose a content image...", type=["jpg", "png", "jpeg"])
