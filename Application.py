@@ -1,41 +1,54 @@
 import streamlit as st
-from PIL import Image
 import tensorflow as tf
+import tensorflow_hub as hub
 import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
 
-# Load your GAN model
+# Load the style transfer model from TensorFlow Hub
+@st.cache(allow_output_mutation=True)
 def load_model():
-    # Replace with your model loading code
-    model = tf.keras.models.load_model('path/to/your/model.h5')
-    return model
+    return hub.load('https://tfhub.dev/google/magenta/arbitrary-image-stylization-v1-256/2')
 
-# Generate a similar image
-def generate_image(model, input_image):
-    # Preprocess the input image
-    input_image = np.array(input_image.resize((256, 256)))  # Resize to the model's input size
-    input_image = (input_image / 255.0).astype(np.float32)  # Normalize
-    input_image = np.expand_dims(input_image, axis=0)  # Add batch dimension
-    
-    # Generate the image
-    generated_image = model.predict(input_image)
-    generated_image = (generated_image.squeeze() * 255).astype(np.uint8)  # Rescale to original range
-    return Image.fromarray(generated_image)
+def load_image(image, max_dim=512):
+    img = Image.open(image)
+    img = img.convert('RGB')
+    img = np.array(img)
+    img = tf.image.convert_image_dtype(img, tf.float32)
+    img = tf.image.resize(img, (max_dim, max_dim), preserve_aspect_ratio=True)
+    img = img[tf.newaxis, :]
+    return img
 
-# Streamlit app
-def main():
-    st.title("Image Similarity Generator")
-    
-    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
-    
-    if uploaded_file is not None:
-        input_image = Image.open(uploaded_file)
-        st.image(input_image, caption="Uploaded Image", use_column_width=True)
-        
-        model = load_model()
-        with st.spinner("Generating similar image..."):
-            generated_image = generate_image(model, input_image)
-        
-        st.image(generated_image, caption="Generated Similar Image", use_column_width=True)
+def fine_tune_model(model, content_image, style_image):
+    stylized_image = model(tf.constant(content_image), tf.constant(style_image))[0]
+    return stylized_image
 
-if __name__ == "__main__":
-    main()
+# Streamlit App Interface
+st.title("Style Transfer Application")
+st.write("Upload a content image and a style image to generate a stylized image.")
+
+# Upload content and style images
+content_image_file = st.file_uploader("Choose a content image...", type=["jpg", "png", "jpeg"])
+style_image_file = st.file_uploader("Choose a style image...", type=["jpg", "png", "jpeg"])
+
+if content_image_file is not None and style_image_file is not None:
+    content_image = load_image(content_image_file)
+    style_image = load_image(style_image_file)
+
+    st.image(content_image[0], caption="Content Image", use_column_width=True)
+    st.image(style_image[0], caption="Style Image", use_column_width=True)
+    
+    # Load the model
+    model = load_model()
+
+    with st.spinner("Generating stylized image..."):
+        stylized_image = fine_tune_model(model, content_image, style_image)
+
+    # Display the stylized image
+    st.image(stylized_image[0], caption="Stylized Image", use_column_width=True)
+
+    # Display the evaluation (optional)
+    content_loss = tf.reduce_mean(tf.square(stylized_image - content_image))
+    st.write(f"Content Loss: {content_loss.numpy()}")
+
+st.write("This application uses a pre-trained TensorFlow Hub model to perform style transfer.")
